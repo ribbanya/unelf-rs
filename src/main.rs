@@ -1,8 +1,7 @@
-use hex;
 use std::fs;
 use std::time::Instant;
 use unwrap_elf::settings::Settings;
-use object::{Object, ObjectSymbol, ObjectSymbolTable};
+use object::{Object, ObjectSymbolTable};
 
 fn main() {
     let settings = Settings::new();
@@ -21,5 +20,5 @@ fn main() {
             println!("{s:?}");
         }
     }
-    println!("Elapsed time: {:.2?}", before.elapsed());
+    println!("\nElapsed time: {:.2?}", before.elapsed());
 }
