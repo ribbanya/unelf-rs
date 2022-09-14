@@ -1,6 +1,6 @@
 use hex;
 use std::fs;
-use std::io::Read;
+use std::time::Instant;
 use unwrap_elf::settings::Settings;
 use object::{Object, ObjectSymbol, ObjectSymbolTable};
 
@@ -13,6 +13,7 @@ fn main() {
         .map(fs::read)
         .unwrap()
         .unwrap();
+    let before = Instant::now();
     let elf_file = object::File::parse(&*bin_data).ok();
     let symbol_table = elf_file.as_ref().and_then(|o| o.symbol_table());
     if let Some(symbols) = symbol_table.as_ref().map(|t| t.symbols()) {
@@ -20,4 +21,5 @@ fn main() {
             println!("{s:?}");
         }
     }
+    println!("Elapsed time: {:.2?}", before.elapsed());
 }
