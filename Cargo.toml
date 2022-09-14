@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 config = "0.13.2"
+hex = "0.4.3"
 log = "0.4.17"
 object = "0.29.0"
 rusqlite = "0.28.0"

@@ -1,4 +1,6 @@
+use hex;
 use std::fs;
+use std::io::Read;
 use unwrap_elf::settings::Settings;
 use object::{Object, ObjectSymbol, ObjectSymbolTable};
 
@@ -15,9 +17,7 @@ fn main() {
     let symbol_table = elf_file.as_ref().and_then(|o| o.symbol_table());
     if let Some(symbols) = symbol_table.as_ref().map(|t| t.symbols()) {
         for s in symbols {
-            let message = s.name()
-                .map_or_else(|e| e.to_string(), |s| s.to_string());
-            println!("{}", message);
+            println!("{s:?}");
         }
     }
 }
