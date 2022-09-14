@@ -1,3 +1,8 @@
+mod settings;
+use settings::Settings;
+
 fn main() {
-    println!("Hello, world!");
+    let settings = Settings::new();
+
+    println!("{:?}", settings);
 }
