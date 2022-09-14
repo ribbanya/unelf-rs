@@ -10,8 +10,10 @@ config = "0.13.2"
 hex = "0.4.3"
 log = "0.4.17"
 object = "0.29.0"
+ppc750cl = { git = "https://github.com/terorie/ppc750cl.git" }
 rusqlite = "0.28.0"
 serde = "1.0.144"
+simple_logger = "2.3.0"
 
 [build-dependencies]
 fs_extra = "1.2.0"
