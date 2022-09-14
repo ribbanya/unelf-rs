@@ -4,14 +4,14 @@ use std::path::PathBuf;
 
 #[derive(Debug, Deserialize)]
 #[allow(unused)]
-struct Elf {
-    path: PathBuf,
+pub struct Elf {
+    pub path: Option<PathBuf>,
 }
 
 #[derive(Debug, Deserialize)]
 #[allow(unused)]
 pub struct Settings {
-    elf: Elf,
+    pub elf: Elf,
 }
 
 impl Settings {
