@@ -1,5 +1,4 @@
-mod settings;
-use settings::Settings;
+use unwrap_elf::settings::Settings;
 
 fn main() {
     let settings = Settings::new();
