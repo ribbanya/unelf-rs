@@ -2,10 +2,10 @@ use simple_logger::SimpleLogger;
 use std::{
     fs::{
         self,
-        File
+        File,
     },
     io::Write,
-    time::Instant
+    time::Instant,
 };
 use log::{debug, LevelFilter};
 use unwrap_elf::settings::Settings;
@@ -69,8 +69,9 @@ fn main() {
         .flatten()
         .for_each(|ins| {
             let code = ins.code;
+            let address = ins.addr;
             let mnemonic = Opcode::detect(code).mnemonic();
-            write!(out_file, "{code:08X} {mnemonic}\n").unwrap();
+            write!(out_file, "{address:08X} {code:08X} {mnemonic}\n").unwrap();
             debug!("{}", mnemonic);
         });
 
