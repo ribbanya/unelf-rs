@@ -1,12 +1,12 @@
 use simple_logger::SimpleLogger;
-use std::{
-    fs::{
-        self,
-        File,
-    },
-    io::Write,
-    time::Instant,
-};
+use std::{fs::{
+    self,
+    File,
+}, io, io::Write, time::Instant};
+use std::any::Any;
+use std::borrow::Borrow;
+use std::error::Error;
+use config::ConfigError;
 use log::{debug, LevelFilter};
 use unwrap_elf::settings::Settings;
 use object::{
@@ -15,11 +15,11 @@ use object::{
     ObjectSymbol,
     ObjectSymbolTable,
     SymbolKind::Text,
+    File as ObjectFile,
 };
 use ppc750cl::{disasm_iter};
 
-
-fn main() {
+fn init_logger() {
     SimpleLogger::new()
         .with_level(
             if cfg!(debug_assertions) {
@@ -29,21 +29,46 @@ fn main() {
             })
         .init()
         .unwrap();
+}
 
-    let settings = Settings::new();
-    let bin_data = settings
-        .ok()
-        .map(|s| s.elf)
-        .and_then(|e| e.path)
-        .map(fs::read)
-        .unwrap()
-        .unwrap();
+
+
+fn get_elf_file() -> Result<(Vec<u8>, ObjectFile<'static>), String> {
+    let result =
+        Settings::new()
+            .map_err(move |err| err.to_string())
+            .map(move |settings| settings.elf)
+            .and_then(move |elf| elf.path
+                .ok_or("No elf path found".to_string()))
+            .and_then(move |path| fs::read(path).map_err(|err| err.to_string()))
+            .and_then(move |data| {
+                ObjectFile::parse(&*data)
+                    .map_err(|err| err.to_string())
+                    .and_then(|elf_file| Ok((data, elf_file)))
+            })
+        /*
+         */
+        ;
+    result
+
+    // .map_err(|err| err.to_string())
+
+    // let elf = settings.elf;
+    // let path = elf.path.ok_or("No elf path found")?;
+    // let data = fs::read(path).map_err(|e| e.to_string())?;
+    // let elf_file = object::File::parse(&*data).map_err(|e| e.to_string())?;
+    // Ok(elf_file)
+    // ?.elf.path.map(fs::read).ok_or(|e| e.to_string())?
+}
+
+fn main() {
+    init_logger();
 
     let before = Instant::now();
 
-    let elf_file = object::File::parse(&*bin_data).ok();
-    let elf_file_ref = elf_file.as_ref();
-    let symbol_table = elf_file_ref.and_then(|o| o.symbol_table());
+    let (data, elf_file) = get_elf_file().unwrap();
+    let symbol_table = elf_file.symbol_table();
+    let elf_file_ref = Some(elf_file).as_ref();
     let mut out_file = File::create({
         let exe_path = std::env::current_exe().unwrap();
         exe_path.parent().unwrap().join("out.s")
