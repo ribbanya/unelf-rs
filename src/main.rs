@@ -5,7 +5,7 @@ use std::{
     time::Instant,
 };
 use config::ConfigError;
-use log::{debug, LevelFilter, SetLoggerError, warn};
+use log::{info, LevelFilter, SetLoggerError, warn};
 use object::{
     Object,
     ObjectSection,
@@ -39,7 +39,7 @@ fn main() {
         handle_error(error);
     }
 
-    println!("\nElapsed time: {:.2?}", before.elapsed());
+    info!("Elapsed time: {:.2?}", before.elapsed());
 }
 
 fn try_main() -> MainResult {
@@ -79,7 +79,7 @@ fn try_init_logger() -> MainResult {
             if cfg!(debug_assertions) {
                 LevelFilter::Debug
             } else {
-                LevelFilter::Error
+                LevelFilter::Warn
             })
         .init().map_err(LoggerError)
 }
@@ -105,7 +105,14 @@ fn filter_symbol(symbol: &Symbol) -> bool {
     if symbol.kind() != Text { return false; };
 
     if symbol.size() == 0 {
-        debug!("'{}' has no size", symbol.name().unwrap_or(&symbol.address().to_string()));
+        warn!("{} has no size", {
+            if let Ok(name) = symbol.name() {
+                format!("'{}'", name)
+            } else {
+                format!("{:X}", symbol.address())
+            }
+        });
+
         return false;
     }
 
@@ -116,7 +123,7 @@ fn process_symbol(symbol: Symbol, elf: &object::File, out: &mut dyn Write) -> Ma
     let address64 = symbol.address();
 
     let address32: u32 = match address64.try_into() {
-        Ok(value32) => value32,
+        Ok(value) => value,
         Err(err) => {
             warn!("Couldn't convert {address64:X} to u32 ({err})");
             return Ok(());
@@ -136,9 +143,9 @@ fn process_symbol(symbol: Symbol, elf: &object::File, out: &mut dyn Write) -> Ma
         if let Some(value) = range_opt { value } else {
             warn!("Section {} is empty", {
                     if let Ok(name) = section.name() {
-                        format!("'{}'", name.to_string())
+                        format!("'{}'", name)
                     } else {
-                        format!("@{:X}", section.address()).to_string()
+                        format!("@{:X}", section.address())
                     }
                 });
             return Ok(());
