@@ -1,25 +1,30 @@
-use simple_logger::SimpleLogger;
-use std::{fs::{
-    self,
-    File,
-}, io, io::Write, time::Instant};
-use std::any::Any;
-use std::borrow::Borrow;
-use std::error::Error;
-use config::ConfigError;
-use log::{debug, LevelFilter};
-use unwrap_elf::settings::Settings;
-use object::{
-    Object,
-    ObjectSection,
-    ObjectSymbol,
-    ObjectSymbolTable,
-    SymbolKind::Text,
-    File as ObjectFile,
+use std::{
+    fs,
+    io::{self, Write},
+    path::PathBuf,
+    time::Instant,
 };
-use ppc750cl::{disasm_iter};
+use config::ConfigError;
+use log::{debug, LevelFilter, SetLoggerError, warn};
+use object::{Object, ObjectSection, ObjectSymbol, ObjectSymbolTable, Symbol, SymbolIterator};
+use object::SymbolKind::Text;
+use simple_logger::SimpleLogger;
+use crate::MainError::*;
+use unwrap_elf::settings::Settings;
 
-fn init_logger() {
+enum MainError {
+    LoggerError(SetLoggerError),
+    SettingsError(ConfigError),
+    MissingElfPath,
+    MissingSymbolTable,
+    ExeHasNoParent,
+    FileError(io::Error),
+    ElfError(object::Error),
+}
+
+type MainResult = Result<(), MainError>;
+
+fn try_init_logger() -> Result<(), SetLoggerError> {
     SimpleLogger::new()
         .with_level(
             if cfg!(debug_assertions) {
@@ -28,95 +33,123 @@ fn init_logger() {
                 LevelFilter::Error
             })
         .init()
-        .unwrap();
 }
 
+fn try_main() -> MainResult {
+    try_init_logger().map_err(LoggerError)?;
 
+    let settings = Settings::new().map_err(SettingsError)?;
+    let elf_path = settings.elf.path.ok_or(MissingElfPath)?;
+    let data = fs::read(elf_path).map_err(FileError)?;
+    let elf = object::File::parse(&*data).map_err(ElfError)?;
 
-fn get_elf_file() -> Result<(Vec<u8>, ObjectFile<'static>), String> {
-    let result =
-        Settings::new()
-            .map_err(move |err| err.to_string())
-            .map(move |settings| settings.elf)
-            .and_then(move |elf| elf.path
-                .ok_or("No elf path found".to_string()))
-            .and_then(move |path| fs::read(path).map_err(|err| err.to_string()))
-            .and_then(move |data| {
-                ObjectFile::parse(&*data)
-                    .map_err(|err| err.to_string())
-                    .and_then(|elf_file| Ok((data, elf_file)))
-            })
-        /*
-         */
-        ;
-    result
+    let symbol_table = elf.symbol_table().ok_or(MissingSymbolTable)?;
+    let symbols = symbol_table.symbols();
 
-    // .map_err(|err| err.to_string())
+    let out_path = get_out_path()?;
+    let mut out_file = fs::File::create(out_path).map_err(FileError)?;
 
-    // let elf = settings.elf;
-    // let path = elf.path.ok_or("No elf path found")?;
-    // let data = fs::read(path).map_err(|e| e.to_string())?;
-    // let elf_file = object::File::parse(&*data).map_err(|e| e.to_string())?;
-    // Ok(elf_file)
-    // ?.elf.path.map(fs::read).ok_or(|e| e.to_string())?
+    process_symbols(&elf, symbols, &mut out_file)?;
+
+    Ok(())
+}
+
+fn get_out_path() -> Result<PathBuf, MainError> {
+    let exe_path = std::env::current_exe().map_err(FileError)?;
+    let parent = exe_path.parent().ok_or(ExeHasNoParent)?;
+    Ok(parent.join("out.s"))
+}
+
+fn process_symbols(elf: &object::File, symbols: SymbolIterator, out: &mut dyn Write) -> MainResult {
+    let symbols = symbols.filter(filter_symbol);
+
+    for symbol in symbols {
+        process_symbol(symbol, elf, out)?;
+    }
+
+    Ok(())
+}
+
+fn filter_symbol(symbol: &Symbol) -> bool {
+    if !symbol.is_definition() { return false; }
+    if symbol.kind() != Text { return false; };
+
+    if symbol.size() == 0 {
+        debug!("'{}' has no size", symbol.name().unwrap_or(&symbol.address().to_string()));
+        return false;
+    }
+
+    return true;
+}
+
+fn process_symbol(symbol: Symbol, elf: &object::File, out: &mut dyn Write) -> MainResult {
+    let address64 = symbol.address();
+
+    let address32: u32 = {
+        let result: Result<u32, _> = address64.try_into();
+        match result {
+            Ok(value32) => value32,
+            Err(err) => {
+                warn!("Couldn't convert {address64:X} to u32 ({err})");
+                return Ok(());
+            }
+        }
+    };
+
+    let index = match symbol.section_index() {
+        Some(value) => value,
+        None => {
+            warn!("Couldn't get section index for symbol @{address32:08X}");
+            return Ok(());
+        }
+    };
+
+    let section = elf.section_by_index(index).map_err(ElfError)?;
+    let range = section.data_range(address64, symbol.size());
+
+//             section
+//                 .and_then(|c| c.data_range(address as u64, sym.size()).ok())
+//                 .flatten()
+//                 .map(|c| disasm_iter(c, address))
+//                 .map(|disasm| (sym, disasm))
+//         })
+//         .for_each(|(sym, disasm)| {
+//             if let Ok(name) = sym.name() {
+//                 write!(out_file, "{name}:\n").unwrap();
+//                 for ins in disasm {
+//                     let code = ins.code;
+//                     let address = ins.addr;
+//                     let simplified = ins.simplified();
+//                     let simplified_str = simplified.to_string();
+//                     write!(out_file, "/* {address:08X} {code:08X} */ {simplified_str}\n")// .unwrap();
+//                 }
+//             }
+//         });
+
+    writeln!(out, "{range:?}").map_err(FileError)?;
+
+    Ok(())
+}
+
+fn handle_error(error: MainError) {
+    match error {
+        LoggerError(inner) => todo!("{}", inner.to_string()),
+        SettingsError(inner) => todo!("{inner}"),
+        MissingElfPath => todo!("Missing elf path"),
+        MissingSymbolTable => todo!("Missing symbol table"),
+        FileError(inner) => todo!("{inner}"),
+        ElfError(inner) => todo!("{inner}"),
+        ExeHasNoParent => todo!("This shouldn't happen...")
+    };
 }
 
 fn main() {
-    init_logger();
-
     let before = Instant::now();
 
-    let (data, elf_file) = get_elf_file().unwrap();
-    let symbol_table = elf_file.symbol_table();
-    let elf_file_ref = Some(elf_file).as_ref();
-    let mut out_file = File::create({
-        let exe_path = std::env::current_exe().unwrap();
-        exe_path.parent().unwrap().join("out.s")
-    }).unwrap();
-
-    elf_file_ref
-        .and(symbol_table)
-        .as_ref()
-        .map(move |t| t.symbols())
-        .into_iter()
-        .by_ref()
-        .flatten()
-        .filter(move |sym| sym.is_definition() && {
-            if sym.size() > 0 {
-                true
-            } else {
-                debug!("'{}' has no size", sym.name().unwrap_or(&sym.address().to_string()));
-                false
-            }
-        } && sym.kind() == Text)
-        .filter_map(move |sym| {
-            let index = sym.section_index();
-            let section = index
-                .and_then(|i| elf_file_ref
-                    .unwrap()
-                    .section_by_index(i)
-                    .ok());
-            let address: u32 = sym.address().try_into().unwrap();
-
-            section
-                .and_then(|c| c.data_range(address as u64, sym.size()).ok())
-                .flatten()
-                .map(|c| disasm_iter(c, address))
-                .map(|disasm| (sym, disasm))
-        })
-        .for_each(|(sym, disasm)| {
-            if let Ok(name) = sym.name() {
-                write!(out_file, "{name}:\n").unwrap();
-                for ins in disasm {
-                    let code = ins.code;
-                    let address = ins.addr;
-                    let simplified = ins.simplified();
-                    let simplified_str = simplified.to_string();
-                    write!(out_file, "/* {address:08X} {code:08X} */ {simplified_str}\n").unwrap();
-                }
-            }
-        });
-
+    if let Err(error) = try_main() {
+        handle_error(error);
+    }
 
     println!("\nElapsed time: {:.2?}", before.elapsed());
+//
 }
