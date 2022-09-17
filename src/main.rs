@@ -6,8 +6,16 @@ use std::{
 };
 use config::ConfigError;
 use log::{debug, LevelFilter, SetLoggerError, warn};
-use object::{Object, ObjectSection, ObjectSymbol, ObjectSymbolTable, Symbol, SymbolIterator};
-use object::SymbolKind::Text;
+use object::{
+    Object,
+    ObjectSection,
+    ObjectSymbol,
+    ObjectSymbolTable,
+    Symbol,
+    SymbolIterator,
+    SymbolKind::Text,
+};
+use ppc750cl::disasm_iter;
 use simple_logger::SimpleLogger;
 use crate::MainError::*;
 use unwrap_elf::settings::Settings;
@@ -24,19 +32,18 @@ enum MainError {
 
 type MainResult = Result<(), MainError>;
 
-fn try_init_logger() -> Result<(), SetLoggerError> {
-    SimpleLogger::new()
-        .with_level(
-            if cfg!(debug_assertions) {
-                LevelFilter::Debug
-            } else {
-                LevelFilter::Error
-            })
-        .init()
+fn main() {
+    let before = Instant::now();
+
+    if let Err(error) = try_main() {
+        handle_error(error);
+    }
+
+    println!("\nElapsed time: {:.2?}", before.elapsed());
 }
 
 fn try_main() -> MainResult {
-    try_init_logger().map_err(LoggerError)?;
+    try_init_logger()?;
 
     let settings = Settings::new().map_err(SettingsError)?;
     let elf_path = settings.elf.path.ok_or(MissingElfPath)?;
@@ -52,6 +59,29 @@ fn try_main() -> MainResult {
     process_symbols(&elf, symbols, &mut out_file)?;
 
     Ok(())
+}
+
+fn handle_error(error: MainError) {
+    match error {
+        LoggerError(inner) => todo!("{}", inner.to_string()),
+        SettingsError(inner) => todo!("{inner}"),
+        MissingElfPath => todo!("Missing elf path"),
+        MissingSymbolTable => todo!("Missing symbol table"),
+        FileError(inner) => todo!("{inner}"),
+        ElfError(inner) => todo!("{inner}"),
+        ExeHasNoParent => todo!("This shouldn't happen...")
+    };
+}
+
+fn try_init_logger() -> MainResult {
+    SimpleLogger::new()
+        .with_level(
+            if cfg!(debug_assertions) {
+                LevelFilter::Debug
+            } else {
+                LevelFilter::Error
+            })
+        .init().map_err(LoggerError)
 }
 
 fn get_out_path() -> Result<PathBuf, MainError> {
@@ -85,71 +115,48 @@ fn filter_symbol(symbol: &Symbol) -> bool {
 fn process_symbol(symbol: Symbol, elf: &object::File, out: &mut dyn Write) -> MainResult {
     let address64 = symbol.address();
 
-    let address32: u32 = {
-        let result: Result<u32, _> = address64.try_into();
-        match result {
-            Ok(value32) => value32,
-            Err(err) => {
-                warn!("Couldn't convert {address64:X} to u32 ({err})");
-                return Ok(());
-            }
-        }
-    };
-
-    let index = match symbol.section_index() {
-        Some(value) => value,
-        None => {
-            warn!("Couldn't get section index for symbol @{address32:08X}");
+    let address32: u32 = match address64.try_into() {
+        Ok(value32) => value32,
+        Err(err) => {
+            warn!("Couldn't convert {address64:X} to u32 ({err})");
             return Ok(());
         }
     };
 
-    let section = elf.section_by_index(index).map_err(ElfError)?;
-    let range = section.data_range(address64, symbol.size());
-
-//             section
-//                 .and_then(|c| c.data_range(address as u64, sym.size()).ok())
-//                 .flatten()
-//                 .map(|c| disasm_iter(c, address))
-//                 .map(|disasm| (sym, disasm))
-//         })
-//         .for_each(|(sym, disasm)| {
-//             if let Ok(name) = sym.name() {
-//                 write!(out_file, "{name}:\n").unwrap();
-//                 for ins in disasm {
-//                     let code = ins.code;
-//                     let address = ins.addr;
-//                     let simplified = ins.simplified();
-//                     let simplified_str = simplified.to_string();
-//                     write!(out_file, "/* {address:08X} {code:08X} */ {simplified_str}\n")// .unwrap();
-//                 }
-//             }
-//         });
-
-    writeln!(out, "{range:?}").map_err(FileError)?;
-
-    Ok(())
-}
-
-fn handle_error(error: MainError) {
-    match error {
-        LoggerError(inner) => todo!("{}", inner.to_string()),
-        SettingsError(inner) => todo!("{inner}"),
-        MissingElfPath => todo!("Missing elf path"),
-        MissingSymbolTable => todo!("Missing symbol table"),
-        FileError(inner) => todo!("{inner}"),
-        ElfError(inner) => todo!("{inner}"),
-        ExeHasNoParent => todo!("This shouldn't happen...")
+    let index = if let Some(value) = symbol.section_index() { value } else {
+        warn!("Couldn't get section index for symbol @{address32:08X}");
+        return Ok(());
     };
-}
 
-fn main() {
-    let before = Instant::now();
+    let section = elf.section_by_index(index).map_err(ElfError)?;
 
-    if let Err(error) = try_main() {
-        handle_error(error);
+    let range = {
+        let range_opt = section.data_range(address64, symbol.size()).map_err(ElfError)?;
+
+        if let Some(value) = range_opt { value } else {
+            warn!("Section {} is empty", {
+                    if let Ok(name) = section.name() {
+                        format!("'{}'", name.to_string())
+                    } else {
+                        format!("@{:X}", section.address()).to_string()
+                    }
+                });
+            return Ok(());
+        }
+    };
+
+    let name = symbol.name().map_err(ElfError)?;
+    let disasm = disasm_iter(range, address32);
+
+    write!(out, "\n{name}:\n").map_err(FileError)?;
+
+    for ins in disasm {
+        let code = ins.code;
+        let address = ins.addr;
+        let simplified = ins.simplified();
+        let simplified_str = simplified.to_string();
+        write!(out, "/* {address:08X} {code:08X} */ {simplified_str}\n").map_err(FileError)?;
     }
 
-    println!("\nElapsed time: {:.2?}", before.elapsed());
-//
+    Ok(())
 }
