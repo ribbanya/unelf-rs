@@ -1,5 +1,6 @@
 mod process_symbols;
 pub(crate) mod main_result;
+pub(crate) mod parse_map;
 
 use unwrap_elf::settings::Settings;
 use crate::{
