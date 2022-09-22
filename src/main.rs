@@ -5,11 +5,13 @@ pub(crate) mod parse_map;
 use unwrap_elf::settings::Settings;
 use crate::{
     process_symbols::process_symbols,
+    parse_map::parse_map,
     main_result::{MainError::{self, *}, MainResult},
 };
 
 use std::{fs, path::PathBuf, time::Instant};
 use log::{info, LevelFilter};
+use regex::Regex;
 use simple_logger::SimpleLogger;
 
 fn main() {
@@ -26,18 +28,23 @@ fn try_main() -> MainResult {
     try_init_logger()?;
 
     let settings = Settings::new().map_err(SettingsError)?;
+    {
+        parse_map("");
+    }
 
-    let elf_data = {
-        let path = settings.elf.path.ok_or(MissingElfPath)?;
-        fs::read(path).map_err(FileError)?
-    };
+    {
+        let elf_data = {
+            let path = settings.elf.path.ok_or(MissingElfPath)?;
+            fs::read(path).map_err(FileError)?
+        };
 
-    let out = {
-        let path = get_out_path()?;
-        fs::File::create(path).map_err(FileError)?
-    };
+        let out = {
+            let path = get_out_path()?;
+            fs::File::create(path).map_err(FileError)?
+        };
 
-    process_symbols(elf_data, out)?;
+        process_symbols(elf_data, out)?;
+    }
 
     Ok(())
 }
@@ -50,7 +57,8 @@ fn handle_error(error: MainError) {
         MissingSymbolTable => todo!("Missing symbol table"),
         FileError(inner) => todo!("{inner}"),
         ElfError(inner) => todo!("{inner}"),
-        ExeHasNoParent => todo!("This shouldn't happen...")
+        ExeHasNoParent => todo!("This shouldn't happen..."),
+        RegexError(inner) => todo!("{inner}"),
     };
 }
 
