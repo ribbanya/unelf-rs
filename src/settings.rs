@@ -3,15 +3,19 @@ use serde::Deserialize;
 use std::path::PathBuf;
 
 #[derive(Debug, Deserialize)]
-#[allow(unused)]
 pub struct Elf {
     pub path: Option<PathBuf>,
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(unused)]
+pub struct Map {
+    pub path: Option<PathBuf>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Settings {
     pub elf: Elf,
+    pub map: Map,
 }
 
 impl Settings {

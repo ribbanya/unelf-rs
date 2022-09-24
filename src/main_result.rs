@@ -9,6 +9,7 @@ pub(crate) enum MainError {
     LoggerError(SetLoggerError),
     SettingsError(ConfigError),
     MissingElfPath,
+    MissingMapPath,
     MissingSymbolTable,
     ExeHasNoParent,
     FileError(IoError),

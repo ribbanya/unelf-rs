@@ -11,25 +11,21 @@ use crate::{
 
 use std::{fs, path::PathBuf, time::Instant};
 use log::{info, LevelFilter};
-use regex::Regex;
 use simple_logger::SimpleLogger;
 
-fn main() {
+fn main() -> MainResult {
     let before = Instant::now();
 
-    if let Err(error) = try_main() {
-        handle_error(error);
-    }
-
-    info!("Elapsed time: {:.2?}", before.elapsed());
-}
-
-fn try_main() -> MainResult {
     try_init_logger()?;
 
     let settings = Settings::new().map_err(SettingsError)?;
+
     {
-        parse_map("");
+        let map_text = {
+            let path = settings.map.path.ok_or(MissingMapPath)?;
+            fs::read_to_string(path).map_err(FileError)?
+        };
+        parse_map(&map_text)?;
     }
 
     {
@@ -43,23 +39,12 @@ fn try_main() -> MainResult {
             fs::File::create(path).map_err(FileError)?
         };
 
-        process_symbols(elf_data, out)?;
+        // process_symbols(elf_data, out)?;
     }
 
-    Ok(())
-}
+    info!("Elapsed time: {:.2?}", before.elapsed());
 
-fn handle_error(error: MainError) {
-    match error {
-        LoggerError(inner) => todo!("{}", inner.to_string()),
-        SettingsError(inner) => todo!("{inner}"),
-        MissingElfPath => todo!("Missing elf path"),
-        MissingSymbolTable => todo!("Missing symbol table"),
-        FileError(inner) => todo!("{inner}"),
-        ElfError(inner) => todo!("{inner}"),
-        ExeHasNoParent => todo!("This shouldn't happen..."),
-        RegexError(inner) => todo!("{inner}"),
-    };
+    Ok(())
 }
 
 fn get_out_path() -> Result<PathBuf, MainError> {
