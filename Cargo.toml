@@ -18,6 +18,8 @@ serde = "1.0.144"
 simple_logger = "2.3.0"
 sha2 = "0.10.6"
 zstd = "0.11.2"
+diesel = { version = "2.0.0", features = ["sqlite"] }
+dotenvy = "0.15"
 
 [build-dependencies]
 fs_extra = "1.2.0"
