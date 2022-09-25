@@ -2,7 +2,7 @@ mod process_symbols;
 pub(crate) mod main_result;
 pub(crate) mod parse_map;
 
-use unwrap_elf::settings::Settings;
+use unelf::settings::Settings;
 use crate::{
     process_symbols::process_symbols,
     parse_map::parse_map,
