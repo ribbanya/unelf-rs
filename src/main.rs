@@ -10,6 +10,7 @@ use crate::{
 };
 
 use std::{fs, path::PathBuf, time::Instant};
+use sha2::{Sha256, Digest};
 use log::{info, LevelFilter};
 use simple_logger::SimpleLogger;
 
@@ -19,13 +20,17 @@ fn main() -> MainResult {
     try_init_logger()?;
 
     let settings = Settings::new().map_err(SettingsError)?;
+    let mut sha256 = Sha256::new();
 
     {
         let map_text = {
             let path = settings.map.path.ok_or(MissingMapPath)?;
             fs::read_to_string(path).map_err(FileError)?
         };
-        parse_map(&map_text)?;
+
+        sha256.update(&map_text);
+        println!("{:256x}", sha256.finalize_reset());
+        // parse_map(&map_text)?;
     }
 
     {
@@ -33,6 +38,9 @@ fn main() -> MainResult {
             let path = settings.elf.path.ok_or(MissingElfPath)?;
             fs::read(path).map_err(FileError)?
         };
+        
+        sha256.update(&elf_data);
+        println!("{:256x}", sha256.finalize_reset());
 
         let out = {
             let path = get_out_path()?;

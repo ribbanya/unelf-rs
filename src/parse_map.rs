@@ -1,12 +1,5 @@
 use regex::Regex;
 use crate::{MainError::{self, *}};
-// symbol_re = re.compile(
-// r"^  (?P<local_addr>[\da-f]{8}) (?P<size>[\da-f]{6})"
-// r" (?P<global_addr>[\da-f]{8})(?:  (?P<alignment>\d))?"
-// r" (?P<name>@?[\.\w]+)(?: \(entry of (?P<parent>@?[\.\w]+)\))?"
-// r" \t(?P<filename>@?[\w \.]+)\.o $")
-
-
 
 pub(crate) fn parse_map(map_text: &str) -> Result<(), MainError> {
     let symbol_re = Regex::new(r"(?x)
@@ -46,10 +39,5 @@ pub(crate) fn parse_map(map_text: &str) -> Result<(), MainError> {
         }
         println!("{}", section_name);
     }
-    // for capture in symbol_re.captures_iter(&map_text) {
-    //     if let Some(s) = capture.name("section").map(|m| m.as_str()) {
-    //         println!("{s}")
-    //     }
-    // }
     Ok(())
 }
