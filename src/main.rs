@@ -1,4 +1,5 @@
 mod process_symbols;
+mod db;
 pub(crate) mod main_result;
 pub(crate) mod parse_map;
 
@@ -7,6 +8,7 @@ use crate::{
     process_symbols::process_symbols,
     parse_map::parse_map,
     main_result::{MainError::{self, *}, MainResult},
+    db::*,
 };
 
 use std::{fs, path::PathBuf, time::Instant};
@@ -38,7 +40,7 @@ fn main() -> MainResult {
             let path = settings.elf.path.ok_or(MissingElfPath)?;
             fs::read(path).map_err(FileError)?
         };
-        
+
         sha256.update(&elf_data);
         println!("{:256x}", sha256.finalize_reset());
 

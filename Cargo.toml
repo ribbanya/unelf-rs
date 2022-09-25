@@ -17,6 +17,7 @@ rusqlite = "0.28.0"
 serde = "1.0.144"
 simple_logger = "2.3.0"
 sha2 = "0.10.6"
+zstd = "0.11.2"
 
 [build-dependencies]
 fs_extra = "1.2.0"
