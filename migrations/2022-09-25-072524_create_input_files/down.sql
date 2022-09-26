@@ -1,7 +1,14 @@
 DROP TABLE trees;
 DROP TABLE runs;
 DROP TABLE files;
+DROP TABLE makefiles;
+DROP TABLE dolphins;
 DROP TABLE elves;
-DROP TABLE sections;
+DROP TABLE maps;
+DROP TABLE elf_sections;
 DROP TABLE symbols;
+DROP TABLE elf_symbols;
 DROP TABLE linker_symbols;
+DROP TABLE c_files;
+DROP TABLE asm_files;
+DROP TABLE html_files;
