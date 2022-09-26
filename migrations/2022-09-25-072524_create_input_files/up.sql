@@ -1,9 +1,15 @@
+-- todo move documentation comments to model
+
+-- todo git_repo or some other way to distinguish projects
+-- how does git internally identify repos? just remotes?
+
 CREATE TABLE git_trees
 (
     id   INTEGER PRIMARY KEY NOT NULL,
     sha1 BLOB                NOT NULL
 -- todo what else does git store about a working tree?
 -- todo could also keep commit info as optional fields
+-- todo commits as "subclass"
 );
 
 CREATE TABLE runs
@@ -21,14 +27,10 @@ CREATE TABLE runs
             ON DELETE SET NULL
 );
 
-CREATE TABLE files
+CREATE TABLE cached_files
 (
     id                    INTEGER PRIMARY KEY NOT NULL,
     sha256                BLOB                NOT NULL,
-
-    -- todo this is not actually attached to the cached file at all
-    path                  TEXT                NOT NULL COLLATE NOCASE,
-
     size                  INTEGER             NOT NULL,
     created               DATETIME            NOT NULL,
     modified              DATETIME            NOT NULL,
@@ -37,6 +39,19 @@ CREATE TABLE files
     compression_algorithm INTEGER             NOT NULL,
     compression_level     INTEGER             NOT NULL,
     compressed_size       INTEGER             NOT NULL
+);
+
+CREATE TABLE files
+(
+    id             INTEGER PRIMARY KEY NOT NULL,
+    cached_file_id INTEGER,
+    git_tree_id    INTEGER,
+    path           TEXT COLLATE BINARY,
+
+    CONSTRAINT fk_files_cached_files
+        FOREIGN KEY (cached_file_id)
+            REFERENCES cached_files (id)
+            ON DELETE SET NULL
 );
 
 CREATE TABLE files_git_trees
@@ -67,7 +82,9 @@ CREATE TABLE mk_files
             ON DELETE CASCADE
 );
 
-CREATE TABLE dol_files
+CREATE TABLE dol_files -- todo generalize to bin_file or something
+-- (bin isn't very descriptive but exe_file sounds like windows)
+-- (or stripped_elf_file)
 (
     id      INTEGER PRIMARY KEY NOT NULL,
     file_id INTEGER             NOT NULL,
@@ -115,13 +132,29 @@ CREATE TABLE map_files
 
 CREATE TABLE symbols
 (
-    -- symbols have nothing in common with each other
-    -- except their semantic identity
-    -- dol symbols have no name, c symbols have no bytecode size, etc
+    -- like symbols have nothing in common with each other,
+    -- except their semantic identity.
+    -- dol symbols have no name, c symbols have no virtual address, etc.
     id INTEGER PRIMARY KEY NOT NULL
+    -- todo TU
+    -- todo ordinal within TU (not here but somewhere?)
+    -- translation_unit_symbol??
+    -- ordinal is not necessarily consistent across builds (like name)
 );
 
-CREATE TABLE symbol_names
+-- todo translation_unit
+-- TUs are semantically consistent regardless of name
+-- (is that even true? splits happen all the time)
+-- (but not within a build)
+
+-- a TU has a name and contains an ordered list of symbols
+-- the symbols each have names AND semantic identity
+-- (you can split a TU but its symbols retain their identity)
+-- symbol names can't change within a build
+
+-- TUs have an order within a build also
+
+CREATE TABLE symbol_names -- todo translation_unit_symbols
 (
     id   INTEGER PRIMARY KEY NOT NULL,
     name TEXT UNIQUE         NOT NULL COLLATE BINARY
@@ -177,15 +210,15 @@ CREATE TABLE elf_symbols
             REFERENCES symbols (id)
             ON DELETE CASCADE,
 
-    CONSTRAINT fk_elf_symbols_symbol_names
-        FOREIGN KEY (symbol_name_id)
-            REFERENCES symbol_names (id)
-            ON DELETE CASCADE,
-
     CONSTRAINT fk_elf_symbols_elf_files
         FOREIGN KEY (elf_file_id)
             REFERENCES elf_files (id)
-            ON DELETE CASCADE
+            ON DELETE CASCADE,
+
+    CONSTRAINT fk_elf_symbols_symbol_names
+        FOREIGN KEY (symbol_name_id)
+            REFERENCES symbol_names (id)
+            ON DELETE SET NULL
 );
 
 CREATE TABLE builds
@@ -208,7 +241,7 @@ CREATE TABLE o_files
 (
     id          INTEGER PRIMARY KEY NOT NULL,
     file_id     INTEGER             NOT NULL,
-    map_file_id INTEGER             NOT NULL,
+    map_file_id INTEGER,
 
     CONSTRAINT fk_o_files_files
         FOREIGN KEY (file_id)
@@ -221,6 +254,8 @@ CREATE TABLE o_files
             ON DELETE SET NULL
 );
 
+-- todo o_symbols
+
 CREATE TABLE c_files
 (
     id           INTEGER PRIMARY KEY NOT NULL,
@@ -232,6 +267,8 @@ CREATE TABLE c_files
             REFERENCES files (id)
             ON DELETE CASCADE
 );
+
+-- todo c_symbols
 
 -- todo dep_files
 
@@ -252,6 +289,8 @@ CREATE TABLE h_files_c_files
             ON DELETE CASCADE
 );
 
+-- todo h_symbols
+
 CREATE TABLE h_files
 (
     id      INTEGER PRIMARY KEY NOT NULL,
@@ -262,6 +301,8 @@ CREATE TABLE h_files
             REFERENCES files (id)
             ON DELETE CASCADE
 );
+
+-- todo s_symbols
 
 CREATE TABLE s_files
 (

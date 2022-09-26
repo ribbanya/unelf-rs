@@ -17,6 +17,21 @@ diesel::table! {
 }
 
 diesel::table! {
+    cached_files (id) {
+        id -> Integer,
+        sha256 -> Binary,
+        size -> Integer,
+        created -> Timestamp,
+        modified -> Timestamp,
+        accessed -> Timestamp,
+        is_generated -> Bool,
+        compression_algorithm -> Integer,
+        compression_level -> Integer,
+        compressed_size -> Integer,
+    }
+}
+
+diesel::table! {
     dol_files (id) {
         id -> Integer,
         file_id -> Integer,
@@ -48,16 +63,9 @@ diesel::table! {
 diesel::table! {
     files (id) {
         id -> Integer,
-        sha256 -> Binary,
-        path -> Text,
-        size -> Integer,
-        created -> Timestamp,
-        modified -> Timestamp,
-        accessed -> Timestamp,
-        is_generated -> Bool,
-        compression_algorithm -> Integer,
-        compression_level -> Integer,
-        compressed_size -> Integer,
+        cached_file_id -> Nullable<Integer>,
+        git_tree_id -> Nullable<Integer>,
+        path -> Nullable<Text>,
     }
 }
 
@@ -132,7 +140,7 @@ diesel::table! {
     o_files (id) {
         id -> Integer,
         file_id -> Integer,
-        map_file_id -> Integer,
+        map_file_id -> Nullable<Integer>,
     }
 }
 
@@ -175,6 +183,7 @@ diesel::joinable!(elf_files -> files (file_id));
 diesel::joinable!(elf_symbols -> elf_files (elf_file_id));
 diesel::joinable!(elf_symbols -> symbol_names (symbol_name_id));
 diesel::joinable!(elf_symbols -> symbols (symbol_id));
+diesel::joinable!(files -> cached_files (cached_file_id));
 diesel::joinable!(files_git_trees -> files (file_id));
 diesel::joinable!(files_git_trees -> git_trees (git_tree_id));
 diesel::joinable!(h_files -> files (file_id));
@@ -194,6 +203,7 @@ diesel::joinable!(s_files -> files (file_id));
 diesel::allow_tables_to_appear_in_same_query!(
     builds,
     c_files,
+    cached_files,
     dol_files,
     elf_files,
     elf_symbols,
