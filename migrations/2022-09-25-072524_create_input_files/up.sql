@@ -10,11 +10,12 @@ CREATE TABLE trees
 
 CREATE TABLE runs
 (
-    id      INTEGER PRIMARY KEY NOT NULL,
-    tree_id INTEGER,
-    began   DATETIME            NOT NULL,
-    ended   DATETIME            NOT NULL,
-    outcome INTEGER             NOT NULL,
+    id           INTEGER PRIMARY KEY NOT NULL,
+    tree_id      INTEGER,
+    make_command TEXT,
+    began        DATETIME            NOT NULL,
+    ended        DATETIME            NOT NULL,
+    outcome      INTEGER             NOT NULL,
 
     CONSTRAINT fk_runs_trees
         FOREIGN KEY (tree_id)
@@ -62,74 +63,140 @@ CREATE TABLE makefiles
             ON DELETE CASCADE
 );
 
-CREATE TABLE dolphins
+CREATE TABLE dol_files
 (
     id      INTEGER PRIMARY KEY NOT NULL,
-    file_id INTEGER
+    file_id INTEGER             NOT NULL,
+
+    CONSTRAINT fk_dol_files
+        FOREIGN KEY (file_id)
+            REFERENCES files (id)
+            ON DELETE CASCADE
 );
 
-CREATE TABLE elves
+CREATE TABLE elf_files
 (
-    id         INTEGER PRIMARY KEY NOT NULL,
-    file_id    INTEGER             NOT NULL,
-    dolphin_id INTEGER             NOT NULL
+    id          INTEGER PRIMARY KEY NOT NULL,
+    file_id     INTEGER             NOT NULL,
+    dol_file_id INTEGER,
+
+    CONSTRAINT fk_elf_files_files
+        FOREIGN KEY (file_id)
+            REFERENCES files (id)
+            ON DELETE CASCADE,
+
+    CONSTRAINT fk_elf_files_dol_files
+        FOREIGN KEY (dol_file_id)
+            REFERENCES dolphins (id)
+            ON DELETE SET NULL
 );
 
-CREATE TABLE maps
+CREATE TABLE map_files
 (
-    id      INTEGER PRIMARY KEY NOT NULL,
-    file_id INTEGER             NOT NULL
-);
+    id          INTEGER PRIMARY KEY NOT NULL,
+    file_id     INTEGER             NOT NULL,
+    elf_file_id INTEGER,
 
-CREATE TABLE elf_sections
-(
-    id              INTEGER PRIMARY KEY NOT NULL,
-    elf_id          INTEGER             NOT NULL,
-    name            TEXT                NOT NULL COLLATE BINARY,
-    file_offset     INTEGER             NOT NULL,
-    virtual_address INTEGER             NOT NULL,
-    size            INTEGER             NOT NULL
+    CONSTRAINT fk_map_files_files
+        FOREIGN KEY (file_id)
+            REFERENCES files (id)
+            ON DELETE CASCADE,
+
+    CONSTRAINT fk_map_files_elf_files
+        FOREIGN KEY (elf_file_id)
+            REFERENCES elf_files (id)
+            ON DELETE SET NULL
 );
 
 CREATE TABLE symbols
 (
+    id   INTEGER PRIMARY KEY NOT NULL,
+    name TEXT                NOT NULL COLLATE BINARY
+    -- todo 
+);
+
+-- todo object files
+
+CREATE TABLE map_symbols
+(
     id              INTEGER PRIMARY KEY NOT NULL,
-    elf_section_id  INTEGER             NOT NULL,
-    name            TEXT                NOT NULL COLLATE BINARY,
+    symbol_id       INTEGER UNIQUE      NOT NULL,
+    map_file_id     INTEGER             NOT NULL,
+    parent_id       INTEGER,
     virtual_address INTEGER             NOT NULL,
     section_offset  INTEGER             NOT NULL,
     file_offset     INTEGER             NOT NULL,
     size            INTEGER             NOT NULL,
-    parent_id       INTEGER,
     depth           INTEGER             NOT NULL,
     type            INTEGER             NOT NULL,
-    scope           INTEGER             NOT NULL
+    scope           INTEGER             NOT NULL,
+
+    CONSTRAINT fk_map_symbols_symbols
+        FOREIGN KEY (symbol_id)
+            REFERENCES symbols (id)
+            ON DELETE CASCADE,
+
+    CONSTRAINT fk_map_symbols_map_files
+        FOREIGN KEY (map_file_id)
+            REFERENCES map_files (id)
+            ON DELETE CASCADE,
+
+    CONSTRAINT fk_map_symbols_parent
+        FOREIGN KEY (parent_id)
+            REFERENCES map_symbols (id)
+            ON DELETE SET NULL
 );
 
 CREATE TABLE elf_symbols
 (
-    id        INTEGER PRIMARY KEY NOT NULL,
-    symbol_id INTEGER UNIQUE      NOT NULL,
+    id          INTEGER PRIMARY KEY NOT NULL,
+    symbol_id   INTEGER UNIQUE      NOT NULL,
+    elf_file_id INTEGER             NOT NULL,
 
     CONSTRAINT fk_elf_symbols_symbols
         FOREIGN KEY (symbol_id)
             REFERENCES symbols (id)
+            ON DELETE CASCADE,
+
+    CONSTRAINT fk_elf_symbols_elf_files
+        FOREIGN KEY (elf_file_id)
+            REFERENCES elf_files (id)
             ON DELETE CASCADE
 );
 
-CREATE TABLE linker_symbols
+CREATE TABLE object_files
 (
-    id              INTEGER PRIMARY KEY NOT NULL,
-    elf_id          INTEGER             NOT NULL,
-    name            TEXT                NOT NULL COLLATE BINARY,
-    virtual_address INTEGER             NOT NULL
+    id          INTEGER PRIMARY KEY NOT NULL,
+    file_id     INTEGER             NOT NULL,
+    map_file_id INTEGER             NOT NULL,
+
+    CONSTRAINT fk_objects_files
+        FOREIGN KEY (file_id)
+            REFERENCES files (id)
+            ON DELETE CASCADE,
+
+    CONSTRAINT fk_objects_map_files
+        FOREIGN KEY (map_file_id)
+            REFERENCES map_files (id)
+            ON DELETE SET NULL
 );
 
 CREATE TABLE c_files
 (
-    id           INTEGER PRIMARY KEY NOT NULL,
-    file_id      INTEGER             NOT NULL,
-    is_generated BOOLEAN             NOT NULL
+    id             INTEGER PRIMARY KEY NOT NULL,
+    file_id        INTEGER             NOT NULL,
+    object_file_id INTEGER,
+    is_generated   BOOLEAN             NOT NULL,
+
+    CONSTRAINT fk_c_files_files
+        FOREIGN KEY (file_id)
+            REFERENCES files (id)
+            ON DELETE CASCADE,
+
+    CONSTRAINT fk_c_files_object_files
+        FOREIGN KEY (object_file_id)
+            REFERENCES object_files (id)
+            ON DELETE SET NULL
 );
 
 CREATE TABLE asm_files

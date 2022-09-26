@@ -11,25 +11,23 @@ diesel::table! {
     c_files (id) {
         id -> Integer,
         file_id -> Integer,
+        object_file_id -> Nullable<Integer>,
         is_generated -> Bool,
     }
 }
 
 diesel::table! {
-    dolphins (id) {
+    dol_files (id) {
         id -> Integer,
-        file_id -> Nullable<Integer>,
+        file_id -> Integer,
     }
 }
 
 diesel::table! {
-    elf_sections (id) {
+    elf_files (id) {
         id -> Integer,
-        elf_id -> Integer,
-        name -> Text,
-        file_offset -> Integer,
-        virtual_address -> Integer,
-        size -> Integer,
+        file_id -> Integer,
+        dol_file_id -> Nullable<Integer>,
     }
 }
 
@@ -37,14 +35,7 @@ diesel::table! {
     elf_symbols (id) {
         id -> Integer,
         symbol_id -> Integer,
-    }
-}
-
-diesel::table! {
-    elves (id) {
-        id -> Integer,
-        file_id -> Integer,
-        dolphin_id -> Integer,
+        elf_file_id -> Integer,
     }
 }
 
@@ -77,15 +68,6 @@ diesel::table! {
 }
 
 diesel::table! {
-    linker_symbols (id) {
-        id -> Integer,
-        elf_id -> Integer,
-        name -> Text,
-        virtual_address -> Integer,
-    }
-}
-
-diesel::table! {
     makefiles (id) {
         id -> Integer,
         file_id -> Integer,
@@ -93,9 +75,35 @@ diesel::table! {
 }
 
 diesel::table! {
-    maps (id) {
+    map_files (id) {
         id -> Integer,
         file_id -> Integer,
+        elf_file_id -> Nullable<Integer>,
+    }
+}
+
+diesel::table! {
+    map_symbols (id) {
+        id -> Integer,
+        symbol_id -> Integer,
+        map_file_id -> Integer,
+        parent_id -> Nullable<Integer>,
+        virtual_address -> Integer,
+        section_offset -> Integer,
+        file_offset -> Integer,
+        size -> Integer,
+        depth -> Integer,
+        #[sql_name = "type"]
+        type_ -> Integer,
+        scope -> Integer,
+    }
+}
+
+diesel::table! {
+    object_files (id) {
+        id -> Integer,
+        file_id -> Integer,
+        map_file_id -> Integer,
     }
 }
 
@@ -103,6 +111,7 @@ diesel::table! {
     runs (id) {
         id -> Integer,
         tree_id -> Nullable<Integer>,
+        make_command -> Nullable<Text>,
         began -> Timestamp,
         ended -> Timestamp,
         outcome -> Integer,
@@ -112,17 +121,7 @@ diesel::table! {
 diesel::table! {
     symbols (id) {
         id -> Integer,
-        elf_section_id -> Integer,
         name -> Text,
-        virtual_address -> Integer,
-        section_offset -> Integer,
-        file_offset -> Integer,
-        size -> Integer,
-        parent_id -> Nullable<Integer>,
-        depth -> Integer,
-        #[sql_name = "type"]
-        type_ -> Integer,
-        scope -> Integer,
     }
 }
 
@@ -133,26 +132,37 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(c_files -> files (file_id));
+diesel::joinable!(c_files -> object_files (object_file_id));
+diesel::joinable!(dol_files -> files (file_id));
+diesel::joinable!(elf_files -> files (file_id));
+diesel::joinable!(elf_symbols -> elf_files (elf_file_id));
 diesel::joinable!(elf_symbols -> symbols (symbol_id));
 diesel::joinable!(files_trees -> files (file_id));
 diesel::joinable!(files_trees -> trees (tree_id));
 diesel::joinable!(html_files -> files (file_id));
 diesel::joinable!(makefiles -> files (file_id));
+diesel::joinable!(map_files -> elf_files (elf_file_id));
+diesel::joinable!(map_files -> files (file_id));
+diesel::joinable!(map_symbols -> map_files (map_file_id));
+diesel::joinable!(map_symbols -> symbols (symbol_id));
+diesel::joinable!(object_files -> files (file_id));
+diesel::joinable!(object_files -> map_files (map_file_id));
 diesel::joinable!(runs -> trees (tree_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     asm_files,
     c_files,
-    dolphins,
-    elf_sections,
+    dol_files,
+    elf_files,
     elf_symbols,
-    elves,
     files,
     files_trees,
     html_files,
-    linker_symbols,
     makefiles,
-    maps,
+    map_files,
+    map_symbols,
+    object_files,
     runs,
     symbols,
     trees,
